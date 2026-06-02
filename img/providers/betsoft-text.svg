@@ -1,0 +1,6 @@
+<svg width="200" height="86" viewBox="0 0 200 86" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="196" height="82" rx="12" fill="#0091d5"/>
+  <rect x="2" y="2" width="196" height="82" rx="12" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+  <text x="100" y="47" text-anchor="middle" dominant-baseline="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="27" letter-spacing="0.5" fill="#ffffff">BETSOFT</text>
+  <rect x="64" y="58" width="72" height="3" rx="1.5" fill="#ffd700"/>
+</svg>

@@ -1,0 +1,1586 @@
+@charset "UTF-8";
+
+/* ── 1. RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; text-decoration: none; transition: color .18s ease; }
+button { cursor: pointer; font: inherit; border: none; background: none; }
+img, svg, video { display: block; max-width: 100%; }
+ul, ol { list-style: none; }
+input, textarea, select { font: inherit; }
+
+/* <details>/<summary> — kill every browser's native disclosure
+   marker. Component-level FAQ styles already use `display:flex` on
+   <summary> which neutralises the marker in Firefox/Chromium, but
+   older Chromium builds + Safari still render a tiny dot/triangle
+   unless each of these three resets is present. Fixing it framework-
+   wide means any future FAQ / "click to expand" component ships
+   clean, no per-variant repetition needed. */
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::marker { display: none; content: ''; }
+
+/* ── 2. CSS TOKENS (framework-level, override with brand vars) ── */
+:root {
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9911px;
+
+  --speed-fast:  .15s;
+  --speed:       .22s;
+  --speed-slow:  .35s;
+  --ease:        cubic-bezier(.4, 0, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  --z-header:   100;
+  --z-modal:    200;
+  --z-toast:    300;
+}
+
+/* ── 3. LAYOUT ─────────────────────────────────────────────────
+   ONE source of truth for inner-content width. Components MUST use
+   .ar-container for any "centered text/cards/grid" wrapper rather
+   than inventing their own max-width. Section backgrounds/colors
+   live on the OUTER section — content lives inside the container.
+   Mobile padding shrinks automatically below 614px so cards don't
+   touch the screen edge. */
+.ar-container {
+  width: 100%;
+  max-width: 1309px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+@media (max-width: 600px) {
+  .ar-container { padding: 0 16px; }
+}
+
+/* Banner placeholder. In the builder preview no real image is injected
+   into <img data-banner-image>, so its empty src renders as the
+   broken-image icon. Hiding it lets the card fall back to its
+   accent-gradient background. In production the generator fills src
+   via _inject_banner_image() and the rule no longer matches. */
+img[data-banner-image]:not([src]),
+img[data-banner-image][src=""] {
+  display: none !important;
+}
+
+/* Inline SVG icon baseline. Replaces the per-tag style="display:inline-block;
+   vertical-align:-0.149em;flex-shrink:0" that the icon generator used to emit
+   on every <svg>. Keeps icons aligned with their adjacent text and prevents
+   shrinking inside flex containers. */
+.ar-icon-inline {
+  display: inline-block;
+  vertical-align: -0.152em;
+  flex-shrink: 0;
+}
+
+/* Sticky-root state classes. Replaces inline `style="position:sticky;..."` that
+   the generator used to inject onto every <header data-sticky-root>. The
+   class is toggled per-site by the generator based on the sticky_settings
+   preference for the chosen header variant. */
+.ar-sticky-root { position: sticky; top: 0; z-index: 100; }
+.ar-static-root { position: relative; }
+
+/* Section vertical paddings. Use top/bottom-only (NOT shorthand `padding: 64px 0`)
+   so when an author accidentally combines ar-section with ar-container on the
+   same element, the horizontal padding from ar-container survives. Without
+   this rule split, `padding: 65px 0` shorthand resets horizontal padding to 0
+   and the section's text becomes flush against the viewport edge on mobile. */
+.ar-section        { padding-top: 63px; padding-bottom: 64px; }
+.ar-section-sm     { padding-top: 39px; padding-bottom: 39px; }
+.ar-section-xs     { padding-top: 24px; padding-bottom: 24px; }
+@media (max-width: 600px) {
+  .ar-section    { padding-top: 41px; padding-bottom: 39px; }
+  .ar-section-sm { padding-top: 28px; padding-bottom: 28px; }
+  .ar-section-xs { padding-top: 18px; padding-bottom: 18px; }
+}
+
+/* ── 4. GRID SYSTEM ──────────────────────────────────────────── */
+.ar-grid   { display: grid; gap: 20px; }
+.ar-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.ar-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.ar-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.ar-grid-auto-sm { grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); }
+.ar-grid-auto    { grid-template-columns: repeat(auto-fill, minmax(244px, 1fr)); }
+.ar-grid-auto-lg { grid-template-columns: repeat(auto-fill, minmax(324px, 1fr)); }
+
+.ar-flex         { display: flex; }
+.ar-flex-col     { flex-direction: column; }
+.ar-items-center { align-items: center; }
+.ar-justify-between { justify-content: space-between; }
+.ar-justify-center  { justify-content: center; }
+.ar-gap-1 { gap: 8px; }
+.ar-gap-2 { gap: 16px; }
+.ar-gap-3 { gap: 24px; }
+.ar-gap-4 { gap: 40px; }
+.ar-wrap  { flex-wrap: wrap; }
+
+/* ── 5. TYPOGRAPHY — Single source of truth ─────────────────── */
+/*
+   Unified type scale used across the entire framework.
+   Element selectors (h1..h6) get the same defaults so unclassed
+   semantic markup also inherits the canonical sizes.
+   Component CSS should NEVER override font-size / font-weight /
+   letter-spacing on heading classes — use these classes everywhere.
+*/
+
+.ar-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+h1, .ar-h1 {
+  font-size: clamp(31px, 4.6vw, 49px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h2, .ar-h2 {
+  font-size: clamp(23px, 2.8vw, 30px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h3, .ar-h3 {
+  font-size: clamp(17px, 1.8vw, 19px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.01em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h4, .ar-h4 {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.005em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h5, .ar-h5 {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h6, .ar-h6 {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+/* Attention-grabbing modifier for CTA / promo headlines (h2 by markup,
+   visually larger so call-to-action stays loud). Apply with: class="ar-h-mega" */
+.ar-h-mega {
+  font-size: clamp(26px, 3.8vw, 42px);
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+
+.ar-lead { font-size: 17px; color: var(--c-text-muted); line-height: 1.7; }
+.ar-lead-spaced { margin-top: 10px; margin-bottom: 24px; }
+.ar-body  { font-size: 15px; color: var(--c-text-muted); line-height: 1.65; }
+.ar-small { font-size: 13px; color: var(--c-text-muted); line-height: 1.5; }
+.ar-tiny  { font-size: 11px; color: var(--c-text-muted); line-height: 1.45; }
+
+.ar-gradient-text {
+  background: linear-gradient(138deg, var(--c-accent) 0%, color-mix(in srgb, var(--c-accent) 60%, var(--c-btn)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ar-text-accent  { color: var(--c-accent); }
+.ar-text-muted   { color: var(--c-text-muted); }
+.ar-text-btn     { color: var(--c-btn); }
+.ar-text-center  { text-align: center; }
+.ar-text-right   { text-align: right; }
+
+/* ── 6. BUTTONS ──────────────────────────────────────────────── */
+.ar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 31px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .025em;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease),
+              background var(--speed) var(--ease),
+              border-color var(--speed) var(--ease),
+              color var(--speed) var(--ease);
+  white-space: nowrap;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.ar-btn:active { transform: scale(.97) !important; }
+
+/* Sizes */
+.ar-btn-xs  { padding: 6px 14px;  font-size: 12px; }
+.ar-btn-sm  { padding: 9px 20px;  font-size: 13px; }
+.ar-btn-lg  { padding: 16px 44px; font-size: 16px; }
+.ar-btn-xl  { padding: 20px 55px; font-size: 18px; font-weight: 800; }
+
+/* Shapes */
+.ar-btn-pill   { border-radius: var(--radius-full); }
+.ar-btn-sharp  { border-radius: 0; }
+.ar-btn-round  { border-radius: var(--radius-lg); }
+
+/* Primary — uses btn color
+   Hover effect unified with bonus_banner / app_banner / how_to / vip / support
+   local CTAs: brightness boost + thin accent ring halo + lift glow. */
+.ar-btn-primary {
+  background: var(--c-btn);
+  color: var(--c-btn-text);
+  box-shadow: 0 8px 23px -8px color-mix(in srgb, var(--c-btn) 70%, transparent);
+  transition: box-shadow .25s ease, filter .18s ease, opacity .2s ease;
+}
+.ar-btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-btn) 22%, transparent),
+    0 12px 27px -8px color-mix(in srgb, var(--c-btn) 80%, transparent);
+}
+
+/* Accent — uses accent color */
+.ar-btn-accent {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-weight: 800;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--c-accent) 70%, transparent);
+  transition: box-shadow .25s ease, filter .18s ease, opacity .2s ease;
+}
+.ar-btn-accent:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-accent) 22%, transparent),
+    0 12px 29px -8px color-mix(in srgb, var(--c-accent) 80%, transparent);
+}
+
+/* Ghost — subtle border. Hover unified with bonus_banner pattern: ring halo. */
+.ar-btn-ghost {
+  background: transparent;
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  transition: box-shadow .25s ease, background .2s ease, filter .18s ease;
+}
+.ar-btn-ghost:hover {
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-accent) 18%, transparent),
+    0 12px 29px -8px color-mix(in srgb, var(--c-accent) 45%, transparent);
+}
+
+/* Outline — accent border */
+.ar-btn-outline {
+  background: transparent;
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.ar-btn-outline:hover {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+
+/* Surface — subtle bg */
+.ar-btn-surface {
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-text);
+}
+.ar-btn-surface:hover {
+  background: color-mix(in srgb, var(--c-surface) 70%, var(--c-accent));
+  border-color: var(--c-accent);
+}
+
+/* Danger */
+.ar-btn-danger {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(220,38,38,0.258);
+}
+.ar-btn-danger:hover { box-shadow: 0 0 18px rgba(220,38,38,0.422); }
+
+/* Disabled */
+.ar-btn:disabled, .ar-btn[disabled] {
+  opacity: .45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Full width */
+.ar-btn-block { width: 100%; }
+
+/* Icon-only */
+.ar-btn-icon { padding: 11px; border-radius: var(--radius); }
+.ar-btn-icon.ar-btn-sm { padding: 7px; }
+
+/* ── 7. CARDS ────────────────────────────────────────────────── */
+.ar-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease),
+              transform var(--speed) var(--ease);
+}
+
+.ar-card:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 50%, transparent);
+  box-shadow: 0 8px 31px color-mix(in srgb, var(--c-accent) 10%, transparent),
+              0 2px 8px rgba(0,0,0,0.444);
+  transform: translateY(-3px);
+}
+
+.ar-card-body   { padding: 25px; }
+.ar-card-header { padding: 18px 25px; border-bottom: 1px solid var(--c-border); }
+.ar-card-footer { padding: 16px 24px; border-top: 1px solid var(--c-border); }
+
+/* Glow variant */
+.ar-card-glow {
+  box-shadow: 0 0 0 1px var(--c-border),
+              0 4px 24px rgba(0,0,0,0.527);
+}
+.ar-card-glow:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-accent) 70%, transparent),
+              0 0 41px color-mix(in srgb, var(--c-accent) 12%, transparent),
+              0 8px 41px rgba(0,0,0,0.513);
+  transform: translateY(-4px);
+}
+
+/* Premium variant */
+.ar-card-premium {
+  background: linear-gradient(149deg,
+    color-mix(in srgb, var(--c-surface) 90%, var(--c-accent)),
+    var(--c-surface));
+  border-color: color-mix(in srgb, var(--c-accent) 30%, transparent);
+}
+
+/* Flat — no hover */
+.ar-card-flat { transition: none; }
+.ar-card-flat:hover { transform: none; box-shadow: none; }
+
+/* ── 8. BADGES ───────────────────────────────────────────────── */
+.ar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.ar-badge-accent {
+  background: color-mix(in srgb, var(--c-accent) 15%, transparent);
+  color: var(--c-accent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+.ar-badge-live {
+  background: #dc2626;
+  color: #fff;
+  animation: ar-pulse-badge 2.032s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(220,38,38,0.538);
+}
+.ar-badge-hot {
+  background: linear-gradient(133deg, #f97316, #dc2626);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(249,115,22,0.441);
+}
+.ar-badge-new {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+}
+.ar-badge-vip {
+  background: linear-gradient(136deg, #92400e, #b45309);
+  color: #fef3c7;
+  border: 1px solid #d97706;
+}
+.ar-badge-surface {
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+}
+.ar-badge-top {
+  background: linear-gradient(134deg, var(--c-btn), color-mix(in srgb, var(--c-btn) 70%, var(--c-accent)));
+  color: var(--c-btn-text);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--c-btn) 35%, transparent);
+}
+
+/* Age/responsibility marker — deliberately low-contrast so it reads as
+   a compliance note, not a promo badge. Every footer uses this exact
+   class, so "18+" always looks identical across site variants. */
+.ar-badge-age {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  background: transparent;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  letter-spacing: .02em;
+  text-transform: none;
+  opacity: .75;
+  white-space: nowrap;
+}
+
+/* Live dot */
+.ar-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: ar-pulse-dot 1.645s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── 9. TAGS / PILLS ─────────────────────────────────────────── */
+.ar-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-full);
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  transition: border-color var(--speed) var(--ease), color var(--speed) var(--ease);
+}
+.ar-tag:hover, .ar-tag.active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.ar-tag.active {
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+}
+
+/* ── 10. HEADER ──────────────────────────────────────────────── */
+.ar-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--c-primary);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* When toggled non-sticky by builder */
+.ar-header[style*="position:relative"] {
+  position: relative !important;
+}
+
+.ar-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 69px;
+  gap: 20px;
+}
+.ar-header-inner a[class*="-btn"],
+.ar-header-inner a[class*="_btn"],
+.ar-header-inner a.ar-btn {
+  font-size: 0.804rem !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 35px;
+}
+
+/* Promo strip above header */
+.ar-header-strip {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 24px;
+}
+
+.ar-header-strip a {
+  color: inherit;
+  opacity: .85;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: opacity .15s, text-decoration-color .15s;
+}
+.ar-header-strip a:hover { opacity: 1; text-decoration-color: currentColor; }
+
+/* Logo */
+.ar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+a.ar-logo:hover { opacity: .7; }
+div.ar-logo { user-select: none; }
+
+.ar-logo-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--c-accent);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+  padding-bottom: 1px;
+  color: var(--c-bg);
+  flex-shrink: 0;
+}
+
+.ar-logo-text {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -.03em;
+  color: var(--c-text);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ar-logo-png {
+  height: 40px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+/* Nav */
+.ar-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.ar-nav-link {
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+}
+.ar-nav > .ar-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text-muted);
+  border-radius: var(--radius-sm);
+  transition: color var(--speed) var(--ease),
+              background var(--speed) var(--ease);
+}
+
+.ar-nav > .ar-nav-link:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-text) 6%, transparent);
+}
+
+.ar-nav > .ar-nav-link.active {
+  color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+}
+
+/* ── Nav Hover Styles ── */
+
+/* 1. Animated underline — line grows from center */
+.ar-nav-hover-1 .ar-nav > .ar-nav-link::after { content:''; position:absolute; bottom:2px; left:50%; width:0; height:2px; background:var(--c-accent); border-radius:2px; transition:width .25s ease, left .25s ease; }
+.ar-nav-hover-1 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-text); }
+.ar-nav-hover-1 .ar-nav > .ar-nav-link:hover::after { width:60%; left:20%; }
+
+/* 2. Pill highlight — soft accent pill */
+.ar-nav-hover-2 .ar-nav > .ar-nav-link { border-radius:20px; }
+.ar-nav-hover-2 .ar-nav > .ar-nav-link:hover { background:color-mix(in srgb, var(--c-accent) 12%, transparent); color:var(--c-accent); }
+
+/* 3. Clean accent text — just color shift */
+.ar-nav-hover-3 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-accent); }
+
+/* 4. Soft bg — subtle background tint */
+.ar-nav-hover-4 .ar-nav > .ar-nav-link { border-radius:6px; }
+.ar-nav-hover-4 .ar-nav > .ar-nav-link:hover { background:color-mix(in srgb, var(--c-text) 8%, transparent); color:var(--c-text); }
+
+/* 5. Glow — soft text glow on hover */
+.ar-nav-hover-5 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-accent); text-shadow:0 0 10px color-mix(in srgb, var(--c-accent) 40%, transparent); }
+
+/* 6. Full underline — line slides from left */
+.ar-nav-hover-6 .ar-nav > .ar-nav-link::after { content:''; position:absolute; bottom:2px; left:0; width:0; height:2px; background:var(--c-accent); transition:width .2s ease; }
+.ar-nav-hover-6 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-text); }
+.ar-nav-hover-6 .ar-nav > .ar-nav-link:hover::after { width:100%; }
+
+/* 7. Thin underline — subtle 1px line appears */
+.ar-nav-hover-7 .ar-nav > .ar-nav-link::after { content:''; position:absolute; bottom:4px; left:16px; right:16px; height:1px; background:var(--c-accent); opacity:0; transition:opacity .2s; }
+.ar-nav-hover-7 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-accent); }
+.ar-nav-hover-7 .ar-nav > .ar-nav-link:hover::after { opacity:1; }
+
+/* 8. Accent pill bg — filled rounded */
+.ar-nav-hover-8 .ar-nav > .ar-nav-link { border-radius:6px; }
+.ar-nav-hover-8 .ar-nav > .ar-nav-link:hover { background:color-mix(in srgb, var(--c-accent) 15%, transparent); color:var(--c-accent); }
+
+/* 9. Dot — small accent dot below */
+.ar-nav-hover-9 .ar-nav > .ar-nav-link::after { content:''; position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--c-accent); opacity:0; transition:opacity .2s; }
+.ar-nav-hover-9 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-text); }
+.ar-nav-hover-9 .ar-nav > .ar-nav-link:hover::after { opacity:1; }
+
+/* 10. Border bottom — clean 2px bottom line */
+.ar-nav-hover-10 .ar-nav > .ar-nav-link::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--c-accent); transform:scaleX(0); transition:transform .2s ease; }
+.ar-nav-hover-10 .ar-nav > .ar-nav-link:hover { background:none; color:var(--c-text); }
+.ar-nav-hover-10 .ar-nav > .ar-nav-link:hover::after { transform:scaleX(1); }
+
+/* Lang Switcher */
+.ar-lang-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.ar-lang-current {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 37px;
+  height: 37px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  transition: opacity 0.151s;
+  padding: 0;
+}
+.ar-lang-current:hover { opacity: 0.75; }
+.ar-lang-current .ar-lang-flag {
+  width: 31px;
+  height: 32px;
+}
+.ar-lang-flag {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+}
+.ar-lang-code { text-transform: uppercase; letter-spacing: 0.04em; }
+.ar-lang-arrow { font-size: 0.504rem; opacity: 0.5; transition: transform 0.203s; }
+.ar-lang-switch:hover .ar-lang-arrow { transform: rotate(178deg); }
+.ar-lang-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding-top: 4px;
+  min-width: 163px;
+  background: var(--c-primary);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 23px rgba(0,0,0,0.293);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.153s;
+  z-index: 200;
+}
+.ar-lang-switch:hover .ar-lang-dropdown {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ar-lang-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  font-size: 0.821rem;
+  font-weight: 500;
+  transition: background 0.15s, color 0.146s;
+}
+.ar-lang-option:hover { background: color-mix(in srgb, var(--c-text) 7%, transparent); color: var(--c-text); }
+.ar-lang-option.active { color: var(--c-accent); }
+
+/* Legacy */
+.ar-nav-underline .ar-nav-link { border-radius: 0; border-bottom: 2px solid transparent; padding-bottom: 6px; }
+.ar-nav-underline .ar-nav-link:hover { background: none; border-bottom-color: var(--c-border); }
+.ar-nav-underline .ar-nav-link.active { background: none; border-bottom-color: var(--c-accent); }
+
+/* CTA group */
+.ar-header-cta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Mobile menu button */
+.ar-menu-btn {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed) var(--ease);
+}
+.ar-menu-btn:hover { background: color-mix(in srgb, var(--c-text) 8%, transparent); }
+.ar-menu-btn span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--c-text);
+  border-radius: 2px;
+  transition: transform var(--speed) var(--ease), opacity var(--speed) var(--ease);
+}
+.ar-menu-btn.open span:nth-child(1) { transform: rotate(44deg) translate(5px, 5px); }
+.ar-menu-btn.open span:nth-child(2) { opacity: 0; }
+.ar-menu-btn.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+/* Mobile drawer */
+.ar-mobile-nav {
+  display: none;
+  flex-direction: column;
+  background: var(--c-primary);
+  border-top: 1px solid var(--c-border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.216);
+}
+.ar-mobile-nav.open { display: flex; }
+
+/* ── Mobile header policy (framework override) ───────────────────
+   Keep Login / Register / Lang switcher visible on mobile across ALL
+   30+ header variants. Components historically hid their `*-desktop`
+   action groups behind a hamburger; the framework now wins and forces
+   them visible inline so brand-critical actions never require a tap
+   to reveal. Buttons shrink to fit narrow viewports.
+
+   Selector permissiveness:
+   - `[class*="cta-desktop"]` substring match covers BOTH hyphen- and
+     underscore-separated prefixes (`.lm54-cta-desktop` AND `.h18_cta-desktop`).
+   - No `.ar-header` ancestor scope: 3 header variants (h11/h14/h21)
+     don't use the `ar-header` class. The class names below are
+     specific enough that we don't need parent scoping. */
+@media (max-width: 768px) {
+  body [class*="cta-desktop"],
+  body [class*="actions-desktop"],
+  body [class*="btns-desktop"],
+  body [class*="cta-wrap"],
+  body [class*="login-actions"],
+  body [class*="strip-actions"] {
+    display: flex !important;
+    align-items: center;
+    gap: 6px !important;
+  }
+  body [class*="cta-desktop"] .ar-btn,
+  body [class*="actions-desktop"] .ar-btn,
+  body [class*="btns-desktop"] .ar-btn,
+  body [class*="cta-wrap"] .ar-btn,
+  body [class*="cta-desktop"] button,
+  body [class*="actions-desktop"] button,
+  body [class*="btns-desktop"] button,
+  body [class*="cta-wrap"] button,
+  body [class*="cta-desktop"] a,
+  body [class*="actions-desktop"] a,
+  body [class*="btns-desktop"] a,
+  body [class*="cta-wrap"] a {
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+  }
+  /* Lang switcher stays compact on mobile too */
+  .ar-lang-switch, .ar-lang-current {
+    font-size: 12px !important;
+  }
+}
+.ar-mobile-nav .ar-container { padding-top: 8px; padding-bottom: 8px; }
+.ar-mobile-nav .ar-nav { display: flex; flex-direction: column; gap: 2px; }
+.ar-mobile-nav .ar-nav-link {
+  display: block;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.916rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--c-text) 75%, transparent);
+  text-decoration: none;
+  transition: background 0.151s, color 0.146s;
+}
+.ar-mobile-nav .ar-nav-link:hover {
+  background: color-mix(in srgb, var(--c-text) 7%, transparent);
+  color: var(--c-text);
+}
+
+/* ── 11. HERO ────────────────────────────────────────────────── */
+.ar-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(132deg, var(--c-grad-start) 0%, var(--c-grad-end) 100%);
+}
+
+.ar-hero-inner {
+  position: relative;
+  z-index: 1;
+  /* Vertical-only padding — using shorthand `padding: 47px 0` would also
+     wipe out the horizontal padding (28px / 16px) that .ar-container
+     provides on the SAME element, leaving hero text flush against the
+     viewport edge on mobile. Set top/bottom explicitly so horizontal
+     padding inherited from .ar-container stays intact. */
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+/* Decorative bg mesh */
+.ar-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 50%, color-mix(in srgb, var(--c-accent) 8%, transparent), transparent),
+    radial-gradient(ellipse 40% 40% at 80% 20%, color-mix(in srgb, var(--c-btn) 6%, transparent), transparent);
+  pointer-events: none;
+}
+
+.ar-hero-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 47px;
+}
+
+.ar-hero-center { text-align: center; max-width: 764px; margin: 0 auto; }
+
+/* ── 12. DIVIDERS ────────────────────────────────────────────── */
+.ar-divider     { height: 1px; background: var(--c-border); }
+.ar-divider-v   { width: 1px; height: auto; align-self: stretch; background: var(--c-border); flex-shrink: 0; }
+
+.ar-divider-accent {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--c-accent), transparent);
+}
+
+.ar-section-break {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+.ar-section-break::before,
+.ar-section-break::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(91deg, transparent, var(--c-border));
+}
+.ar-section-break::after {
+  background: linear-gradient(277deg, transparent, var(--c-border));
+}
+
+/* ── 13. SCROLL STRIP (game cards, etc.) ─────────────────────── */
+.ar-scroll-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 12px;
+}
+
+.ar-scroll-strip::-webkit-scrollbar { height: 3px; }
+.ar-scroll-strip::-webkit-scrollbar-track { background: var(--c-surface); border-radius: 2px; }
+.ar-scroll-strip::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+.ar-scroll-strip > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* ── 14. GAME CARD ───────────────────────────────────────────── */
+.ar-game-card {
+  width: 154px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease),
+              transform var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease);
+  cursor: pointer;
+}
+
+.ar-game-card:hover {
+  border-color: var(--c-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 23px color-mix(in srgb, var(--c-accent) 15%, transparent);
+}
+
+.ar-game-thumb {
+  height: 95px;
+  background: linear-gradient(138deg, var(--c-primary), var(--c-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ar-game-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.576);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--speed) var(--ease);
+  backdrop-filter: blur(2px);
+}
+
+.ar-game-card:hover .ar-game-thumb-overlay { opacity: 1; }
+
+.ar-play-btn {
+  width: 42px;
+  height: 41px;
+  border-radius: 50%;
+  background: var(--c-btn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-btn-text);
+  font-size: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.363);
+  transition: transform var(--speed-fast) var(--ease-spring);
+}
+.ar-play-btn:hover { transform: scale(1.1); }
+
+.ar-game-info { padding: 10px 12px 12px; }
+
+.ar-game-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ar-game-provider {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-top: 3px;
+}
+
+/* ── 15. PROGRESS BAR ────────────────────────────────────────── */
+.ar-progress {
+  height: 5px;
+  background: color-mix(in srgb, var(--c-border) 80%, transparent);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.ar-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c-accent), color-mix(in srgb, var(--c-accent) 70%, var(--c-btn)));
+  border-radius: var(--radius-full);
+  transition: width .8s var(--ease);
+}
+
+.ar-progress-thin { height: 3px; }
+.ar-progress-thick { height: 8px; }
+
+/* ── 16. STATS ───────────────────────────────────────────────── */
+.ar-stat-value {
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+}
+
+.ar-stat-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-top: 6px;
+}
+
+/* ── 17. COUNTDOWN ───────────────────────────────────────────── */
+.ar-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ar-countdown-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: color-mix(in srgb, var(--c-bg) 80%, transparent);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  min-width: 69px;
+  backdrop-filter: blur(8px);
+}
+
+.ar-countdown-num {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ar-countdown-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--c-text-muted);
+  margin-top: 5px;
+}
+
+.ar-countdown-sep {
+  font-size: 27px;
+  font-weight: 900;
+  color: var(--c-text-muted);
+  margin-top: -10px;
+  opacity: .5;
+}
+
+/* ── 18. RATING ──────────────────────────────────────────────── */
+.ar-stars { color: #f59e0b; font-size: 15px; letter-spacing: 1px; }
+.ar-score {
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+}
+.ar-score-sm { font-size: 24px; }
+
+/* ── 19. PAYMENT PILLS ───────────────────────────────────────── */
+.ar-payment-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ar-payment-pill {
+  padding: 5px 14px;
+  background: color-mix(in srgb, var(--c-surface) 80%, transparent);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  transition: border-color var(--speed) var(--ease), color var(--speed) var(--ease);
+}
+.ar-payment-pill:hover { border-color: var(--c-accent); color: var(--c-text); }
+
+/* Payment icon (SVG / PNG) rendered in the footer. Without an explicit
+   size, SVGs shipped without intrinsic width/height attributes expand
+   to fill the parent — turning a single BTC logo into a full-screen
+   takeover. Fixed height + auto width keeps every icon visually
+   consistent regardless of their natural dimensions, and the
+   surrounding `.ar-payment-pills` flex container handles wrapping.
+
+   White pill background because our colored brand SVGs (Visa blue, MC
+   red/yellow, Bitcoin orange, PayPal navy+cyan, etc.) are designed for
+   light surfaces — dropping them on a dark casino footer kills the
+   contrast. A near-white pill with subtle 92 % opacity lets the dark
+   footer tone show through just enough to sit comfortably, without
+   washing out the icon's own colours. */
+.ar-pay-logo {
+  height: 22px;
+  width: auto;
+  max-width: 57px;
+  display: inline-block;
+  object-fit: contain;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.968);
+  border: 1px solid rgba(0, 0, 0, 0.081);
+  border-radius: 6px;
+  box-sizing: content-box;
+  transition: transform var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+}
+.ar-pay-logo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.249);
+}
+
+/* ── 20. INPUT ───────────────────────────────────────────────── */
+.ar-input {
+  width: 100%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 13px 18px;
+  font-size: 14px;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease);
+}
+
+.ar-input:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+
+.ar-input::placeholder { color: var(--c-text-muted); }
+
+/* Input + button inline */
+.ar-input-group {
+  display: flex;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease);
+}
+.ar-input-group:focus-within { border-color: var(--c-accent); }
+.ar-input-group .ar-input {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  flex: 1;
+}
+.ar-input-group .ar-btn { border-radius: 0; border: none; }
+
+/* ── 21. TABLE ───────────────────────────────────────────────── */
+.ar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ar-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.ar-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-border) 50%, transparent);
+  color: var(--c-text);
+}
+
+.ar-table tr:hover td { background: color-mix(in srgb, var(--c-surface) 50%, transparent); }
+.ar-table tr:last-child td { border-bottom: none; }
+
+/* ── 22. TABS ────────────────────────────────────────────────── */
+.ar-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+}
+
+.ar-tab {
+  flex: 1;
+  padding: 9px 17px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--speed) var(--ease);
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.ar-tab:hover { color: var(--c-text); background: color-mix(in srgb, var(--c-text) 6%, transparent); }
+
+.ar-tab.active {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-weight: 700;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--c-accent) 40%, transparent);
+}
+
+/* Simple underline tabs */
+.ar-tabs-underline {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--c-border);
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.ar-tabs-underline .ar-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 10px 20px;
+  margin-bottom: -1px;
+}
+
+.ar-tabs-underline .ar-tab.active {
+  background: none;
+  color: var(--c-accent);
+  border-bottom-color: var(--c-accent);
+  box-shadow: none;
+}
+
+/* ── 23. SLIDER ──────────────────────────────────────────────── */
+.ar-slider {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.ar-slider-track {
+  display: flex;
+  transition: transform .5s var(--ease);
+  will-change: transform;
+}
+
+.ar-slide {
+  min-width: 100%;
+}
+
+.ar-slider-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  padding: 0 12px;
+}
+
+.ar-slider-btn {
+  width: 41px;
+  height: 42px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c-bg) 80%, transparent);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  transition: background var(--speed) var(--ease), transform var(--speed-fast) var(--ease);
+  backdrop-filter: blur(8px);
+  font-size: 18px;
+}
+.ar-slider-btn:hover { background: var(--c-accent); color: var(--c-bg); transform: scale(1.05); }
+.ar-slider-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+.ar-slider-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-border);
+  cursor: pointer;
+  transition: background var(--speed) var(--ease),
+              width var(--speed) var(--ease);
+  border: none;
+}
+.ar-dot.active { width: 24px; border-radius: 4px; background: var(--c-accent); }
+
+/* ── 24. FOOTER ──────────────────────────────────────────────── */
+.ar-footer {
+  background: var(--c-primary);
+  border-top: 1px solid var(--c-border);
+  padding: 49px 0 28px;
+}
+
+.ar-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 39px;
+  padding-bottom: 36px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.ar-footer-brand p {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  line-height: 1.7;
+  margin-top: 14px;
+  max-width: 287px;
+}
+
+.ar-footer-col h4 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--c-text-muted);
+  margin-bottom: 16px;
+}
+
+.ar-footer-links { display: flex; flex-direction: column; gap: 10px; }
+.ar-footer-link {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  transition: color var(--speed) var(--ease);
+}
+.ar-footer-link:hover { color: var(--c-accent); }
+
+.ar-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 24px;
+}
+
+.ar-footer-legal {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--c-text-muted) 60%, transparent);
+  line-height: 1.7;
+  max-width: 805px;
+}
+
+/* ── 25. UTILITY HELPERS ─────────────────────────────────────── */
+.ar-hidden       { display: none !important; }
+.ar-sr-only      { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+.ar-mt-1 { margin-top: 8px; }
+.ar-mt-2 { margin-top: 16px; }
+.ar-mt-3 { margin-top: 29px; }
+.ar-mt-4 { margin-top: 48px; }
+.ar-mb-1 { margin-bottom: 8px; }
+.ar-mb-2 { margin-bottom: 16px; }
+.ar-mb-3 { margin-bottom: 28px; }
+
+/* ── 26. SCROLL-TRIGGERED ANIMATIONS ────────────────────────── */
+[data-animate] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity .55s var(--ease), transform .55s var(--ease);
+}
+
+[data-animate].ar-visible {
+  opacity: 1;
+  transform: none;
+}
+
+[data-animate="fade"] { transform: none; }
+[data-animate="left"]  { transform: translateX(-24px); }
+[data-animate="right"] { transform: translateX(24px); }
+[data-animate="scale"] { transform: scale(.92); }
+
+/* Delay helpers */
+[data-delay="1"] { transition-delay: .1s; }
+[data-delay="2"] { transition-delay: .2s; }
+[data-delay="3"] { transition-delay: .3s; }
+[data-delay="4"] { transition-delay: .4s; }
+
+/* ── 27. KEYFRAME ANIMATIONS ─────────────────────────────────── */
+@keyframes ar-pulse-badge {
+  0%, 100% { box-shadow: 0 0 8px rgba(220,38,38,0.459); }
+  50%       { box-shadow: 0 0 20px rgba(220,38,38,0.81); }
+}
+
+@keyframes ar-pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.5); opacity: .6; }
+}
+
+@keyframes ar-glow {
+  0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--c-accent) 25%, transparent); }
+  50%       { box-shadow: 0 0 32px color-mix(in srgb, var(--c-accent) 55%, transparent); }
+}
+
+@keyframes ar-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes ar-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes ar-spin {
+  to { transform: rotate(355deg); }
+}
+
+@keyframes ar-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes ar-count {
+  from { opacity: 0; transform: scale(.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.ar-animate-glow   { animation: ar-glow   2.002s ease-in-out infinite; }
+.ar-animate-float  { animation: ar-float  2.967s ease-in-out infinite; }
+.ar-animate-spin   { animation: ar-spin   8.091s linear infinite; }
+.ar-animate-marquee { animation: ar-marquee 19.915s linear infinite; }
+
+/* Skeleton loader */
+.ar-skeleton {
+  background: linear-gradient(93deg,
+    var(--c-surface) 25%,
+    color-mix(in srgb, var(--c-surface) 60%, var(--c-border)) 50%,
+    var(--c-surface) 75%);
+  background-size: 200% 100%;
+  animation: ar-shimmer 1.537s infinite;
+  border-radius: var(--radius);
+}
+
+/* ── 28. SPECIAL EFFECTS ─────────────────────────────────────── */
+
+/* Glass card */
+.ar-glass {
+  background: color-mix(in srgb, var(--c-surface) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-text) 12%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Neon glow border */
+.ar-neon {
+  border-color: var(--c-accent) !important;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c-accent) 40%, transparent),
+              0 0 39px color-mix(in srgb, var(--c-accent) 15%, transparent),
+              inset 0 0 20px color-mix(in srgb, var(--c-accent) 5%, transparent);
+}
+
+/* Gradient border trick */
+.ar-grad-border {
+  position: relative;
+  border: none !important;
+}
+.ar-grad-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(136deg, var(--c-accent), var(--c-btn));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── 29. RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .ar-container { padding: 0 20px; }
+  .ar-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .ar-footer-grid { grid-template-columns: 1fr 1fr; gap: 29px; }
+  .ar-hero-split { grid-template-columns: 1fr; gap: 37px; }
+}
+
+@media (max-width: 768px) {
+  .ar-container { padding: 0 16px; }
+  .ar-section { padding-top: 51px; padding-bottom: 51px; }
+  .ar-section-sm { padding-top: 36px; padding-bottom: 36px; }
+
+  .ar-grid-2, .ar-grid-3, .ar-grid-4 { grid-template-columns: 1fr; }
+
+  .ar-nav { display: none; }
+  .ar-menu-btn { display: flex; }
+
+  .ar-header-inner { height: 59px; }
+  .ar-logo-text { font-size: 16px; }
+
+  .ar-footer-grid { grid-template-columns: 1fr; gap: 24px; }
+  .ar-footer-bottom { flex-direction: column; align-items: flex-start; }
+
+  .ar-hero-inner { padding-top: 55px; padding-bottom: 56px; }
+  .ar-h1 { font-size: 32px; }
+  .ar-h2 { font-size: 26px; }
+
+  .ar-countdown-box { padding: 10px 12px; min-width: 54px; }
+  .ar-countdown-num { font-size: 24px; }
+
+  .ar-tabs { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .ar-btn { padding: 11px 21px; }
+  .ar-btn-lg { padding: 14px 32px; font-size: 15px; }
+  .ar-btn-xl { padding: 16px 35px; font-size: 16px; }
+  .ar-stat-value { font-size: 31px; }
+  .ar-score { font-size: 33px; }
+}
