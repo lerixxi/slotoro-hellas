@@ -32,7 +32,7 @@ function arCounter(el) {
     const progress = Math.min(elapsed / duration, 1);
     const value    = target * easeOut(progress);
 
-    el.textContent = prefix + value.toLocaleString('en', fmtOpts) + suffix;
+    el.textContent = prefix + value.toLocaleString('el', fmtOpts) + suffix;
 
     if (progress < 1) requestAnimationFrame(tick);
   }
@@ -47,7 +47,7 @@ function arJackpot(el) {
   const rate   = parseFloat(el.dataset.rate || '0.17'); // per tick
 
   function format(v) {
-    return prefix + v.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return prefix + v.toLocaleString('el', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   el.textContent = format(value);
@@ -226,7 +226,7 @@ function arScrollAnimations() {
 
 /* ── NUMBER FORMAT HELPER ────────────────────────────────────── */
 function arFormatNumber(n, decimals = 0) {
-  return n.toLocaleString('en', {
+  return n.toLocaleString('el', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
